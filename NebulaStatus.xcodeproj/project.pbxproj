@@ -55,6 +55,7 @@
 				63ED18492F66E06800ADEB94 /* Sources */,
 				63ED184A2F66E06800ADEB94 /* Frameworks */,
 				63ED184B2F66E06800ADEB94 /* Resources */,
+				A16E10012F66E06800ADEB94 /* Build Privileged Helper */,
 			);
 			buildRules = (
 			);
@@ -113,6 +114,32 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		A16E10012F66E06800ADEB94 /* Build Privileged Helper */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(PROJECT_DIR)/NebulaStatus/NebulaPrivilegedHelperProtocol.swift",
+				"$(PROJECT_DIR)/PrivilegedHelper/PrivilegedHelperMain.swift",
+				"$(PROJECT_DIR)/PrivilegedHelper/underclub.NebulaStatus.PrivilegedHelper.plist",
+			);
+			name = "Build Privileged Helper";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(BUILT_PRODUCTS_DIR)/$(FULL_PRODUCT_NAME)/Contents/Library/LaunchServices/underclub.NebulaStatus.PrivilegedHelper",
+				"$(BUILT_PRODUCTS_DIR)/$(FULL_PRODUCT_NAME)/Contents/Library/LaunchDaemons/underclub.NebulaStatus.PrivilegedHelper.plist",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -eu\nHELPER_NAME=\"underclub.NebulaStatus.PrivilegedHelper\"\nHELPER_OUTPUT_DIR=\"${BUILT_PRODUCTS_DIR}/${FULL_PRODUCT_NAME}/Contents/Library/LaunchServices\"\nHELPER_OUTPUT=\"${HELPER_OUTPUT_DIR}/${HELPER_NAME}\"\nLAUNCH_DAEMONS_DIR=\"${BUILT_PRODUCTS_DIR}/${FULL_PRODUCT_NAME}/Contents/Library/LaunchDaemons\"\nPROTOCOL_SOURCE=\"${PROJECT_DIR}/NebulaStatus/NebulaPrivilegedHelperProtocol.swift\"\nHELPER_SOURCE=\"${PROJECT_DIR}/PrivilegedHelper/PrivilegedHelperMain.swift\"\nPLIST_SOURCE=\"${PROJECT_DIR}/PrivilegedHelper/underclub.NebulaStatus.PrivilegedHelper.plist\"\nSWIFTC=\"${TOOLCHAIN_DIR}/usr/bin/swiftc\"\nmkdir -p \"${HELPER_OUTPUT_DIR}\" \"${LAUNCH_DAEMONS_DIR}\"\n\"${SWIFTC}\" -sdk \"${SDKROOT}\" -target \"${NATIVE_ARCH_ACTUAL}-apple-macos${MACOSX_DEPLOYMENT_TARGET}\" -o \"${HELPER_OUTPUT}\" \"${PROTOCOL_SOURCE}\" \"${HELPER_SOURCE}\"\n/bin/cp \"${PLIST_SOURCE}\" \"${LAUNCH_DAEMONS_DIR}/underclub.NebulaStatus.PrivilegedHelper.plist\"\nif [ \"${CODE_SIGNING_ALLOWED}\" = \"YES\" ] && [ -n \"${EXPANDED_CODE_SIGN_IDENTITY:-}\" ]; then\n  /usr/bin/codesign --force --sign \"${EXPANDED_CODE_SIGN_IDENTITY}\" --identifier \"${HELPER_NAME}\" --timestamp=none \"${HELPER_OUTPUT}\"\nfi\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		63ED18492F66E06800ADEB94 /* Sources */ = {
@@ -251,16 +278,19 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				ENABLE_APP_SANDBOX = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				ENABLE_PREVIEWS = YES;
-				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_CFBundleDisplayName = NebulaStatus;
+				INFOPLIST_KEY_CFBundleName = NebulaStatus;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_LSUIElement = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 Morgan Chester";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 0.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = underclub.NebulaStatus;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -281,16 +311,19 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				ENABLE_APP_SANDBOX = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				ENABLE_PREVIEWS = YES;
-				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_CFBundleDisplayName = NebulaStatus;
+				INFOPLIST_KEY_CFBundleName = NebulaStatus;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_LSUIElement = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 Morgan Chester";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 0.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = underclub.NebulaStatus;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
