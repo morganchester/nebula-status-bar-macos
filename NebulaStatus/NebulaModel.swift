@@ -2,441 +2,6 @@ import SwiftUI
 import AppKit
 import Combine
 import Foundation
-import ServiceManagement
-
-final class NebulaTraceLogger {
-    nonisolated(unsafe) static let shared = NebulaTraceLogger(processLabel: "APP")
-
-    private let processLabel: String
-    private let lock = NSLock()
-    private let fileManager = FileManager.default
-    private let formatter: ISO8601DateFormatter = {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter
-    }()
-
-    nonisolated init(processLabel: String) {
-        self.processLabel = processLabel
-    }
-
-    nonisolated func log(_ scope: String, _ message: String) {
-        guard NebulaPrivilegedHelperConstants.isDebugEnabled() else {
-            return
-        }
-
-        lock.lock()
-        defer { lock.unlock() }
-
-        ensureLogFile()
-
-        let timestamp = formatter.string(from: Date())
-        let threadLabel = Thread.isMainThread ? "main" : "background"
-        let line = "\(timestamp) [\(processLabel)] [pid:\(getpid())] [\(threadLabel)] [\(scope)] \(message)\n"
-
-        guard let data = line.data(using: .utf8) else {
-            return
-        }
-
-        let url = URL(fileURLWithPath: NebulaPrivilegedHelperConstants.logFilePath)
-
-        do {
-            let handle = try FileHandle(forWritingTo: url)
-            try handle.seekToEnd()
-            try handle.write(contentsOf: data)
-            try handle.close()
-        } catch {
-            NSLog("NebulaTraceLogger failed: \(error.localizedDescription)")
-        }
-    }
-
-    nonisolated private func ensureLogFile() {
-        let directoryPath = NebulaPrivilegedHelperConstants.logDirectoryPath
-        let filePath = NebulaPrivilegedHelperConstants.logFilePath
-
-        if !fileManager.fileExists(atPath: directoryPath) {
-            try? fileManager.createDirectory(
-                atPath: directoryPath,
-                withIntermediateDirectories: true,
-                attributes: [.posixPermissions: 0o777]
-            )
-        }
-
-        if !fileManager.fileExists(atPath: filePath) {
-            fileManager.createFile(
-                atPath: filePath,
-                contents: nil,
-                attributes: [.posixPermissions: 0o666]
-            )
-        }
-
-        try? fileManager.setAttributes([.posixPermissions: 0o777], ofItemAtPath: directoryPath)
-        try? fileManager.setAttributes([.posixPermissions: 0o666], ofItemAtPath: filePath)
-    }
-}
-
-enum LaunchctlDomain: Hashable {
-    case system
-    case gui(UInt32)
-
-    var target: String {
-        switch self {
-        case .system:
-            return "system"
-        case let .gui(userID):
-            return "gui/\(userID)"
-        }
-    }
-
-    var requiresPrivileges: Bool {
-        switch self {
-        case .system:
-            return true
-        case .gui:
-            return false
-        }
-    }
-}
-
-enum NebulaServiceKind: Hashable {
-    case launchd(label: String, plistPath: String, domain: LaunchctlDomain)
-    case manual
-}
-
-struct ManualNebulaEntry: Identifiable, Codable, Hashable {
-    let id: String
-    var configPath: String
-}
-
-struct NebulaService: Identifiable, Hashable {
-    let id: String
-    let title: String
-    let subtitle: String
-    let detectedConfigPath: String?
-    let kind: NebulaServiceKind
-
-    var isManual: Bool {
-        if case .manual = kind {
-            return true
-        }
-
-        return false
-    }
-
-    var plistPath: String? {
-        guard case let .launchd(_, path, _) = kind else {
-            return nil
-        }
-
-        return path
-    }
-
-    var launchdLabel: String? {
-        guard case let .launchd(label, _, _) = kind else {
-            return nil
-        }
-
-        return label
-    }
-
-    var domain: LaunchctlDomain? {
-        guard case let .launchd(_, _, domain) = kind else {
-            return nil
-        }
-
-        return domain
-    }
-}
-
-enum ServiceState: String {
-    case running = "RUNNING"
-    case stopped = "STOPPED"
-    case unknown = "UNKNOWN"
-}
-
-struct AppMetadata {
-    let name: String
-    let version: String
-    let build: String
-    let bundleIdentifier: String
-
-    static let current = AppMetadata(
-        name: Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
-            ?? Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String
-            ?? "NebulaStatus",
-        version: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.2",
-        build: Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "2",
-        bundleIdentifier: Bundle.main.bundleIdentifier ?? "underclub.NebulaStatus"
-    )
-
-    var versionLine: String {
-        "\(name) \(version) (\(build))"
-    }
-}
-
-enum PrivilegedHelperState: Equatable {
-    case enabled
-    case unreachable
-    case notRegistered
-    case requiresApproval
-    case notFound
-
-    var title: String {
-        switch self {
-        case .enabled:
-            return "Ready"
-        case .unreachable:
-            return "Unreachable"
-        case .notRegistered:
-            return "Not installed"
-        case .requiresApproval:
-            return "Awaiting approval"
-        case .notFound:
-            return "Missing from bundle"
-        }
-    }
-
-    var needsAttention: Bool {
-        self != .enabled
-    }
-}
-
-struct PrivilegedHelperFailure: Error {
-    let message: String
-}
-
-final class PrivilegedHelperController {
-    private let service = SMAppService.daemon(plistName: NebulaPrivilegedHelperConstants.plistName)
-    private static let xpcTimeout: TimeInterval = 10
-    private static let healthcheckTimeout: TimeInterval = 2
-
-    func currentState() -> PrivilegedHelperState {
-        switch service.status {
-        case .enabled:
-            return .enabled
-        case .notRegistered:
-            return .notRegistered
-        case .requiresApproval:
-            return .requiresApproval
-        case .notFound:
-            return .notFound
-        @unknown default:
-            return .notFound
-        }
-    }
-
-    func registerIfNeeded() -> Result<PrivilegedHelperState, PrivilegedHelperFailure> {
-        let initialState = currentState()
-        if initialState == .enabled {
-            return .success(initialState)
-        }
-
-        do {
-            try service.register()
-        } catch {
-            let stateAfterFailure = currentState()
-            if stateAfterFailure == .requiresApproval || stateAfterFailure == .enabled {
-                return .success(stateAfterFailure)
-            }
-
-            return .failure(.init(message: "Failed to register privileged helper: \(error.localizedDescription)"))
-        }
-
-        return .success(currentState())
-    }
-
-    func repairRegistration() -> Result<PrivilegedHelperState, PrivilegedHelperFailure> {
-        do {
-            try? service.unregister()
-            try service.register()
-        } catch {
-            let fallbackState = currentState()
-            if fallbackState == .requiresApproval || fallbackState == .enabled {
-                return .success(fallbackState)
-            }
-
-            return .failure(.init(message: "Failed to repair privileged helper: \(error.localizedDescription)"))
-        }
-
-        return .success(currentState())
-    }
-
-    func openSystemSettings() {
-        SMAppService.openSystemSettingsLoginItems()
-    }
-
-    func probeReachability(completion: @escaping (Bool) -> Void) {
-        guard currentState() == .enabled else {
-            completion(false)
-            return
-        }
-
-        performPing(timeout: Self.healthcheckTimeout, completion: completion)
-    }
-
-    func runLaunchctl(arguments: [String], completion: @escaping (Result<(Int32, String, String), PrivilegedHelperFailure>) -> Void) {
-        perform(completion: completion) { proxy, reply in
-            proxy.runLaunchctl(arguments: arguments, withReply: reply)
-        }
-    }
-
-    func startNebula(configPath: String, completion: @escaping (Result<(Int32, String, String), PrivilegedHelperFailure>) -> Void) {
-        perform(completion: completion) { proxy, reply in
-            proxy.startNebula(configPath: configPath, withReply: reply)
-        }
-    }
-
-    func stopNebula(configPath: String, completion: @escaping (Result<(Int32, String, String), PrivilegedHelperFailure>) -> Void) {
-        perform(completion: completion) { proxy, reply in
-            proxy.stopNebula(configPath: configPath, withReply: reply)
-        }
-    }
-
-    private func performPing(timeout: TimeInterval, completion: @escaping (Bool) -> Void) {
-        NebulaTraceLogger.shared.log("xpc", "Opening ping connection to \(NebulaPrivilegedHelperConstants.machServiceName)")
-        let connection = NSXPCConnection(
-            machServiceName: NebulaPrivilegedHelperConstants.machServiceName,
-            options: .privileged
-        )
-        connection.remoteObjectInterface = NSXPCInterface(with: NebulaPrivilegedHelperProtocol.self)
-
-        let completionLock = NSLock()
-        var didFinish = false
-        var timeoutWorkItem: DispatchWorkItem?
-
-        let finish: (Bool) -> Void = { reachable in
-            completionLock.lock()
-            defer { completionLock.unlock() }
-
-            guard !didFinish else {
-                NebulaTraceLogger.shared.log("xpc", "Ignoring duplicate ping completion")
-                return
-            }
-
-            didFinish = true
-            timeoutWorkItem?.cancel()
-            connection.invalidate()
-            completion(reachable)
-        }
-
-        connection.interruptionHandler = {
-            NebulaTraceLogger.shared.log("xpc", "Ping connection interrupted")
-            finish(false)
-        }
-
-        connection.invalidationHandler = {
-            NebulaTraceLogger.shared.log("xpc", "Ping connection invalidated")
-        }
-
-        connection.resume()
-
-        let proxy = connection.remoteObjectProxyWithErrorHandler { error in
-            NebulaTraceLogger.shared.log("xpc", "Ping connection error = \(error.localizedDescription)")
-            finish(false)
-        } as? NebulaPrivilegedHelperProtocol
-
-        guard let proxy else {
-            NebulaTraceLogger.shared.log("xpc", "Ping proxy unavailable")
-            finish(false)
-            return
-        }
-
-        DispatchQueue.global(qos: .utility).async {
-            proxy.ping { response in
-                NebulaTraceLogger.shared.log("xpc", "Ping reply = \(Self.sanitize(response))")
-                finish(true)
-            }
-        }
-
-        let workItem = DispatchWorkItem {
-            NebulaTraceLogger.shared.log("xpc", "Ping timed out after \(Int(timeout)) seconds")
-            finish(false)
-        }
-        timeoutWorkItem = workItem
-        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + timeout, execute: workItem)
-    }
-
-    private func perform(
-        completion: @escaping (Result<(Int32, String, String), PrivilegedHelperFailure>) -> Void,
-        invocation: @escaping (NebulaPrivilegedHelperProtocol, @escaping (Int, String, String) -> Void) -> Void
-    ) {
-        NebulaTraceLogger.shared.log("xpc", "Opening privileged helper connection to \(NebulaPrivilegedHelperConstants.machServiceName)")
-        let connection = NSXPCConnection(
-            machServiceName: NebulaPrivilegedHelperConstants.machServiceName,
-            options: .privileged
-        )
-        connection.remoteObjectInterface = NSXPCInterface(with: NebulaPrivilegedHelperProtocol.self)
-        let completionLock = NSLock()
-        var didFinish = false
-
-        let finish: (Result<(Int32, String, String), PrivilegedHelperFailure>) -> Void = { result in
-            completionLock.lock()
-            defer { completionLock.unlock() }
-
-            guard !didFinish else {
-                NebulaTraceLogger.shared.log("xpc", "Ignoring duplicate completion")
-                return
-            }
-
-            didFinish = true
-            connection.invalidate()
-            completion(result)
-        }
-
-        connection.interruptionHandler = {
-            NebulaTraceLogger.shared.log("xpc", "Connection interrupted")
-            finish(.failure(.init(message: "Privileged helper connection was interrupted.")))
-        }
-
-        connection.invalidationHandler = {
-            NebulaTraceLogger.shared.log("xpc", "Connection invalidated")
-        }
-
-        connection.resume()
-
-        let proxy = connection.remoteObjectProxyWithErrorHandler { error in
-            NebulaTraceLogger.shared.log("xpc", "Connection error = \(error.localizedDescription)")
-            finish(.failure(.init(message: "Privileged helper connection failed: \(error.localizedDescription)")))
-        } as? NebulaPrivilegedHelperProtocol
-
-        guard let proxy else {
-            NebulaTraceLogger.shared.log("xpc", "Proxy unavailable")
-            finish(.failure(.init(message: "Privileged helper interface is unavailable.")))
-            return
-        }
-
-        DispatchQueue.global(qos: .userInitiated).async {
-            NebulaTraceLogger.shared.log("xpc", "Dispatching helper invocation off main thread")
-            invocation(proxy) { status, output, error in
-                NebulaTraceLogger.shared.log(
-                    "xpc",
-                    "Reply status = \(status), stdout = \(Self.sanitize(output)), stderr = \(Self.sanitize(error))"
-                )
-                finish(.success((Int32(status), output, error)))
-            }
-        }
-
-        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + Self.xpcTimeout) {
-            NebulaTraceLogger.shared.log("xpc", "Connection timed out after \(Int(Self.xpcTimeout)) seconds")
-            finish(.failure(.init(message: "Privileged helper did not respond within \(Int(Self.xpcTimeout)) seconds.")))
-        }
-    }
-
-    private static func sanitize(_ text: String) -> String {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty {
-            return "<empty>"
-        }
-
-        return trimmed.replacingOccurrences(of: "\n", with: "\\n")
-    }
-}
-
-private enum HelperOperation {
-    case launchctl([String])
-    case startNebula(String)
-    case stopNebula(String)
-}
 
 @MainActor
 final class NebulaModel: ObservableObject {
@@ -1534,7 +1099,7 @@ final class NebulaModel: ObservableObject {
         return "(^|/)nebula([[:space:]]|$).*(-config|--config)(=|[[:space:]])\(escapedPath)([[:space:]]|$)"
     }
 
-    private func shellQuote(_ value: String) -> String {
+    func shellQuote(_ value: String) -> String {
         if value.isEmpty {
             return "''"
         }
@@ -1713,7 +1278,7 @@ final class NebulaModel: ObservableObject {
         )
     }
 
-    private func isNebulaService(
+    func isNebulaService(
         label: String,
         program: String?,
         programArguments: [String],
@@ -1728,7 +1293,7 @@ final class NebulaModel: ObservableObject {
         }
     }
 
-    private func extractConfigPath(from programArguments: [String]) -> String? {
+    func extractConfigPath(from programArguments: [String]) -> String? {
         for (index, argument) in programArguments.enumerated() {
             if argument == "-config" || argument == "--config" {
                 let nextIndex = programArguments.index(after: index)
@@ -2034,7 +1599,7 @@ final class NebulaModel: ObservableObject {
         return matchingLines.isEmpty ? .stopped : .running
     }
 
-    private func extractPID(from text: String) -> Int? {
+    func extractPID(from text: String) -> Int? {
         for line in text.split(whereSeparator: \.isNewline) {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             if trimmed.hasPrefix("pid = ") {
@@ -2046,7 +1611,7 @@ final class NebulaModel: ObservableObject {
         return nil
     }
 
-    private func extractLaunchctlListState(label: String, from output: String) -> ServiceState? {
+    func extractLaunchctlListState(label: String, from output: String) -> ServiceState? {
         for line in output.split(whereSeparator: \.isNewline) {
             let columns = line.split(whereSeparator: \.isWhitespace)
             guard columns.count >= 3 else {
@@ -2069,7 +1634,7 @@ final class NebulaModel: ObservableObject {
         return nil
     }
 
-    private func normalizeConfigPath(_ value: String) -> String {
+    func normalizeConfigPath(_ value: String) -> String {
         let expanded = (value as NSString).expandingTildeInPath
         let standardized = (expanded as NSString).standardizingPath
 
@@ -2080,7 +1645,7 @@ final class NebulaModel: ObservableObject {
         return standardized.replacingOccurrences(of: "/+$", with: "", options: .regularExpression)
     }
 
-    private func resolveConfigFilePath(from configPath: String) -> String? {
+    func resolveConfigFilePath(from configPath: String) -> String? {
         let normalizedPath = normalizeConfigPath(configPath)
         var isDirectory: ObjCBool = false
 
@@ -2119,7 +1684,7 @@ final class NebulaModel: ObservableObject {
             .path
     }
 
-    private func extractTunDevice(fromConfigFile configFilePath: String) -> String? {
+    func extractTunDevice(fromConfigFile configFilePath: String) -> String? {
         guard let contents = try? String(contentsOfFile: configFilePath, encoding: .utf8) else {
             return nil
         }
@@ -2244,7 +1809,7 @@ final class NebulaModel: ObservableObject {
         }
     }
 
-    private func commandLineStartsWithNebula(_ arguments: String) -> Bool {
+    func commandLineStartsWithNebula(_ arguments: String) -> Bool {
         guard let executable = arguments.split(whereSeparator: \.isWhitespace).first else {
             return false
         }
@@ -2271,232 +1836,5 @@ final class NebulaModel: ObservableObject {
         }
 
         return normalized
-    }
-}
-
-struct MenuContentView: View {
-    @ObservedObject var model: NebulaModel
-    private let metadata = AppMetadata.current
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Button("Add Config") {
-                    model.addManualConfig()
-                }
-
-                if model.isDebugEnabled {
-                    Button("Refresh") {
-                        model.refreshAll()
-                    }
-
-                    Button("Open Log") {
-                        model.openLogFile()
-                    }
-
-                    Button("Clear Log") {
-                        model.clearLogFile()
-                    }
-                }
-
-                Spacer()
-
-                Toggle("Debug On", isOn: Binding(
-                    get: { model.isDebugEnabled },
-                    set: { model.setDebugEnabled($0) }
-                ))
-                .toggleStyle(.switch)
-                .controlSize(.small)
-
-                Text("\(model.services.count) item\(model.services.count == 1 ? "" : "s")")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
-
-            if model.shouldShowHelperSection {
-                Divider()
-
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text("Privileged helper")
-                            .font(.headline)
-
-                        Spacer()
-
-                        Text(model.helperStatusText)
-                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                            .foregroundStyle(model.helperState == .enabled ? .green : .orange)
-                    }
-
-                    Text(model.helperHintText)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: 360, alignment: .leading)
-
-                    if model.helperState != .enabled {
-                        HStack {
-                            Button("Install Helper") {
-                                model.installHelper()
-                            }
-
-                            if model.helperState == .unreachable {
-                                Button("Repair Helper") {
-                                    model.repairHelper()
-                                }
-                            }
-
-                            if model.helperState == .requiresApproval {
-                                Button("Open Login Items") {
-                                    model.openHelperSettings()
-                                }
-                            }
-
-                            if model.isDebugEnabled {
-                                Button("Recheck") {
-                                    model.refreshHelperState()
-                                }
-                            }
-                        }
-                        .buttonStyle(.bordered)
-                    }
-                }
-            }
-
-            if model.services.isEmpty {
-                Text("No Nebula services or manual configs found.")
-                    .font(.headline)
-
-                Text("Scan paths: /Library/LaunchDaemons, /Library/LaunchAgents, ~/Library/LaunchAgents. Use Add Config for direct nebula -config launches.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: 360, alignment: .leading)
-            }
-
-            ForEach(model.services) { service in
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(alignment: .firstTextBaseline) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(service.title)
-                                .font(.headline)
-
-                            Text(service.subtitle)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        Spacer()
-
-                        Text(model.stateText(for: service))
-                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                            .foregroundStyle(model.isRunning(service) ? .green : .secondary)
-                    }
-
-                    if let configPath = model.configPath(for: service) {
-                        Text(configPath)
-                            .font(.system(size: 11, design: .monospaced))
-                            .foregroundStyle(model.hasManualConfigOverride(for: service) ? .orange : .secondary)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                    }
-
-                    if let actualIP = model.actualIPAddress(for: service) {
-                        Text("IP \(actualIP)")
-                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                            .foregroundStyle(.green)
-                    }
-
-                    HStack {
-                        Button(model.isRunning(service) ? "Stop" : "Start") {
-                            model.toggle(service)
-                        }
-
-                        if model.isDebugEnabled {
-                            Button("Restart") {
-                                model.restart(service)
-                            }
-
-                            Button("Config") {
-                                model.openConfig(service)
-                            }
-                            .disabled(model.configPath(for: service) == nil)
-                        }
-
-                        if model.isDebugEnabled, service.plistPath != nil {
-                            Button("plist") {
-                                model.openPlist(service)
-                            }
-                        }
-
-                        Button {
-                            model.configureConfigPath(for: service)
-                        } label: {
-                            Image(systemName: "gearshape")
-                        }
-                        .help(service.isManual ? "Change or remove manual config" : (model.hasManualConfigOverride(for: service) ? "Change or reset config override" : "Select config path manually"))
-                    }
-                    .buttonStyle(.bordered)
-
-                    Divider()
-                }
-            }
-
-            if model.isBusy {
-                Text("Applying…")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
-
-            if !model.lastError.isEmpty {
-                Divider()
-                Text(model.lastError)
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(.red)
-                    .frame(maxWidth: 360, alignment: .leading)
-            }
-
-            if model.isDebugEnabled {
-                Divider()
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(metadata.versionLine)
-                        .font(.footnote.weight(.semibold))
-
-                    Text(metadata.bundleIdentifier)
-                        .font(.system(size: 11, design: .monospaced))
-                        .foregroundStyle(.secondary)
-
-                    Text(model.logFilePath)
-                        .font(.system(size: 10, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
-            }
-
-            Button("Quit") {
-                NSApplication.shared.terminate(nil)
-            }
-        }
-        .padding(12)
-        .frame(minWidth: 380)
-    }
-}
-
-final class AppDelegate: NSObject, NSApplicationDelegate {
-    func applicationWillFinishLaunching(_ notification: Notification) {
-        NSApp.setActivationPolicy(.prohibited)
-    }
-}
-
-@main
-struct NebulaTrayApp: App {
-    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @StateObject private var model = NebulaModel()
-
-    var body: some Scene {
-        MenuBarExtra("Nebula", systemImage: "network") {
-            MenuContentView(model: model)
-        }
-        .menuBarExtraStyle(.window)
     }
 }

@@ -6,8 +6,19 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXContainerItemProxy section */
+		FACE00012F76A00100000008 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 63ED18452F66E06800ADEB94 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 63ED184C2F66E06800ADEB94;
+			remoteInfo = NebulaStatus;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		63ED184D2F66E06800ADEB94 /* NebulaStatus.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NebulaStatus.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		FACE00012F76A00100000001 /* NebulaStatusTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = NebulaStatusTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -16,10 +27,22 @@
 			path = NebulaStatus;
 			sourceTree = "<group>";
 		};
+		FACE00012F76A00100000002 /* NebulaStatusTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = NebulaStatusTests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		63ED184A2F66E06800ADEB94 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		FACE00012F76A00100000004 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -33,6 +56,7 @@
 			isa = PBXGroup;
 			children = (
 				63ED184F2F66E06800ADEB94 /* NebulaStatus */,
+				FACE00012F76A00100000002 /* NebulaStatusTests */,
 				63ED184E2F66E06800ADEB94 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -41,6 +65,7 @@
 			isa = PBXGroup;
 			children = (
 				63ED184D2F66E06800ADEB94 /* NebulaStatus.app */,
+				FACE00012F76A00100000001 /* NebulaStatusTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -71,6 +96,29 @@
 			productReference = 63ED184D2F66E06800ADEB94 /* NebulaStatus.app */;
 			productType = "com.apple.product-type.application";
 		};
+		FACE00012F76A00100000006 /* NebulaStatusTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = FACE00012F76A0010000000B /* Build configuration list for PBXNativeTarget "NebulaStatusTests" */;
+			buildPhases = (
+				FACE00012F76A00100000003 /* Sources */,
+				FACE00012F76A00100000004 /* Frameworks */,
+				FACE00012F76A00100000005 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				FACE00012F76A00100000007 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				FACE00012F76A00100000002 /* NebulaStatusTests */,
+			);
+			name = NebulaStatusTests;
+			packageProductDependencies = (
+			);
+			productName = NebulaStatusTests;
+			productReference = FACE00012F76A00100000001 /* NebulaStatusTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -83,6 +131,10 @@
 				TargetAttributes = {
 					63ED184C2F66E06800ADEB94 = {
 						CreatedOnToolsVersion = 26.3;
+					};
+					FACE00012F76A00100000006 = {
+						CreatedOnToolsVersion = 26.3;
+						TestTargetID = 63ED184C2F66E06800ADEB94;
 					};
 				};
 			};
@@ -101,12 +153,20 @@
 			projectRoot = "";
 			targets = (
 				63ED184C2F66E06800ADEB94 /* NebulaStatus */,
+				FACE00012F76A00100000006 /* NebulaStatusTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		63ED184B2F66E06800ADEB94 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		FACE00012F76A00100000005 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -149,7 +209,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		FACE00012F76A00100000003 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		FACE00012F76A00100000007 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 63ED184C2F66E06800ADEB94 /* NebulaStatus */;
+			targetProxy = FACE00012F76A00100000008 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		63ED18562F66E06900ADEB94 /* Debug */ = {
@@ -336,6 +411,44 @@
 			};
 			name = Release;
 		};
+		FACE00012F76A00100000009 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.2;
+				PRODUCT_BUNDLE_IDENTIFIER = underclub.NebulaStatusTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/NebulaStatus.app/Contents/MacOS/NebulaStatus";
+			};
+			name = Debug;
+		};
+		FACE00012F76A0010000000A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.2;
+				PRODUCT_BUNDLE_IDENTIFIER = underclub.NebulaStatusTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/NebulaStatus.app/Contents/MacOS/NebulaStatus";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -353,6 +466,15 @@
 			buildConfigurations = (
 				63ED18592F66E06900ADEB94 /* Debug */,
 				63ED185A2F66E06900ADEB94 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		FACE00012F76A0010000000B /* Build configuration list for PBXNativeTarget "NebulaStatusTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				FACE00012F76A00100000009 /* Debug */,
+				FACE00012F76A0010000000A /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
